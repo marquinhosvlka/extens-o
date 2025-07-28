@@ -11,18 +11,16 @@ class PopupManager {
   }
 
   async loadSettings() {
-    const result = await chrome.storage.sync.get(['voiceSpeed', 'voicePitch', 'assistantActive', 'geminiApiKey', 'aiEnabled']);
+    const result = await chrome.storage.sync.get(['voiceSpeed', 'voicePitch', 'assistantActive', 'aiEnabled']);
     
     const speedSlider = document.getElementById('voiceSpeed');
     const pitchSlider = document.getElementById('voicePitch');
-    const apiKeyInput = document.getElementById('geminiApiKey');
     const aiEnabledCheckbox = document.getElementById('aiEnabled');
     
     speedSlider.value = result.voiceSpeed || 1.0;
     pitchSlider.value = result.voicePitch || 1.0;
     this.isAssistantActive = result.assistantActive || false;
-    apiKeyInput.value = result.geminiApiKey || '';
-    aiEnabledCheckbox.checked = result.aiEnabled !== false; // Padrão: true
+    aiEnabledCheckbox.checked = result.aiEnabled !== false; // Sempre true por padrão
     
     this.updateSpeedValue();
     this.updatePitchValue();
@@ -51,9 +49,7 @@ class PopupManager {
     });
 
     // Configurações da API Gemini
-    document.getElementById('saveApiKey').addEventListener('click', () => {
-      this.saveApiKey();
-    });
+    // Chave da API agora está integrada no código, não precisa mais salvar
 
     document.getElementById('aiEnabled').addEventListener('change', (e) => {
       this.saveSettings();
@@ -184,27 +180,6 @@ class PopupManager {
       });
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-    }
-  }
-
-  async saveApiKey() {
-    try {
-      const apiKey = document.getElementById('geminiApiKey').value.trim();
-      
-      if (!apiKey) {
-        alert('Por favor, insira uma chave da API válida.');
-        return;
-      }
-
-      // Salva a chave no storage
-      await chrome.storage.sync.set({
-        geminiApiKey: apiKey
-      });
-
-      alert('Chave da API salva com sucesso!');
-    } catch (error) {
-      console.error('Erro ao salvar chave da API:', error);
-      alert('Erro ao salvar chave da API. Tente novamente.');
     }
   }
 

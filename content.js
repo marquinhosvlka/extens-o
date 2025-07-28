@@ -1,30 +1,29 @@
-// content.js (Corrigido com escuta contínua e fala local)
+// content.js (Melhorado com mais funcionalidades e comandos avançados)
 
 class AccessibilityContentScript {
   constructor() {
-    this.isAssistantActive = true; // Começa ativo
+    this.isAssistantActive = true;
     this.isListening = false;
-    this.isActivated = false; // NOVO: Controla se o assistente foi ativado
-    this.activationTimeout = null; // NOVO: Timeout para desativar automaticamente
+    this.isActivated = false;
+    this.activationTimeout = null;
     this.recognition = null;
-    this.synthesis = window.speechSynthesis; // <-- API de fala
+    this.synthesis = window.speechSynthesis;
+    this.currentUtterance = null;
     this.init();
   }
 
   async init() {
-    // Carrega o estado salvo
     const result = await chrome.storage.sync.get(['assistantActive']);
     this.isAssistantActive = result.assistantActive !== undefined ? result.assistantActive : true;
 
     this.createFloatingButton();
     this.setupSpeechRecognition();
     this.setupClickToRead();
+    this.setupKeyboardShortcuts();
     this.updateButtonState();
 
-    // Inicia em modo passivo (só escuta palavras-chave de ativação)
     if (this.isAssistantActive) {
       this.startPassiveListening();
-      // Lê o título da página automaticamente após um pequeno delay
       setTimeout(() => {
         this.readPageTitle();
       }, 2000);
@@ -36,50 +35,66 @@ class AccessibilityContentScript {
     });
   }
 
-  // MUDANÇA: Função de fala local com controle de interrupção
   speak(text, interruptible = true) {
     if (!text || !this.isAssistantActive) return;
     
-    // Se não for interrompível e já estiver falando, não interrompe
     if (!interruptible && this.synthesis.speaking) {
       return;
     }
     
-    this.synthesis.cancel(); // Cancela falas anteriores
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'pt-BR';
-    utterance.rate = 1.0;
-    this.synthesis.speak(utterance);
+    this.synthesis.cancel();
+    this.currentUtterance = new SpeechSynthesisUtterance(text);
+    this.currentUtterance.lang = 'pt-BR';
+    this.currentUtterance.rate = 1.0;
+    this.currentUtterance.pitch = 1.0;
+    
+    // Callback quando termina de falar
+    this.currentUtterance.onend = () => {
+      this.currentUtterance = null;
+    };
+    
+    this.synthesis.speak(this.currentUtterance);
   }
 
   createFloatingButton() {
-     // Seu código do botão flutuante aqui...
-     // Apenas garanta que o evento de clique chame `this.activateAndListen()`
-     if (document.getElementById('voice-assistant-floating')) return;
+    if (document.getElementById('voice-assistant-floating')) return;
 
-      const buttonContainer = document.createElement('div');
-      buttonContainer.id = 'voice-assistant-floating';
-      buttonContainer.style.position = 'fixed';
-      buttonContainer.style.bottom = '20px';
-      buttonContainer.style.right = '20px';
-      buttonContainer.style.zIndex = '999999';
+    const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'voice-assistant-floating';
+    buttonContainer.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 999999;
+      font-family: Arial, sans-serif;
+    `;
 
-      const button = document.createElement('button');
-      button.id = 'assistantBtn';
-      button.textContent = '🎤';
-      button.style.width = '60px';
-      button.style.height = '60px';
-      button.style.borderRadius = '50%';
-      button.style.border = 'none';
-      button.style.backgroundColor = '#764ba2';
-      button.style.color = 'white';
-      button.style.fontSize = '24px';
-      button.style.cursor = 'pointer';
+    const button = document.createElement('button');
+    button.id = 'assistantBtn';
+    button.textContent = '🎤';
+    button.style.cssText = `
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: none;
+      background-color: #764ba2;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+    `;
 
-      buttonContainer.appendChild(button);
-      document.body.appendChild(buttonContainer);
-      
-      button.addEventListener('click', () => this.activateAndListen());
+    button.addEventListener('click', () => this.activateAndListen());
+    button.addEventListener('mouseenter', () => {
+      button.style.transform = 'scale(1.1)';
+    });
+    button.addEventListener('mouseleave', () => {
+      button.style.transform = 'scale(1)';
+    });
+
+    buttonContainer.appendChild(button);
+    document.body.appendChild(buttonContainer);
   }
 
   setupSpeechRecognition() {
@@ -88,7 +103,7 @@ class AccessibilityContentScript {
 
     this.recognition = new SpeechRecognition();
     this.recognition.lang = 'pt-BR';
-    this.recognition.continuous = true; // <-- MUDANÇA: Escuta contínua
+    this.recognition.continuous = true;
     this.recognition.interimResults = false;
 
     this.recognition.onresult = (event) => {
@@ -100,21 +115,25 @@ class AccessibilityContentScript {
         if (transcript.includes('para') || transcript.includes('pare') || transcript.includes('stop')) {
           this.synthesis.cancel();
           this.speak('Parado.', false);
-          this.deactivateAssistant(); // Desativa após parar
+          this.deactivateAssistant();
           return;
         }
         
         // Ativação por palavra-chave
-        if (transcript.includes('ok assistente') || transcript.includes('ei assistente')) {
+        if (transcript.includes('ok assistente') || transcript.includes('ei assistente') || transcript.includes('hey assistente')) {
           this.activateAssistant();
         } else if (this.isActivated) {
-          // Só processa comandos se estiver ativado
-          this.resetActivationTimeout(); // Reseta o timeout
+          this.resetActivationTimeout();
           
           // Processa comandos locais primeiro
           const localCommand = this.processLocalCommand(transcript);
           if (localCommand) {
-            this.speak(localCommand);
+            if (localCommand.action) {
+              this[localCommand.action](localCommand.parameter);
+            }
+            if (localCommand.text) {
+              this.speak(localCommand.text);
+            }
           } else {
             // Se não encontrou comando local, envia para o background
             chrome.runtime.sendMessage({
@@ -123,131 +142,212 @@ class AccessibilityContentScript {
             }).catch(e => console.error(e));
           }
         }
-        // Se não estiver ativado, ignora outros comandos
       }
     };
 
     this.recognition.onend = () => {
       this.isListening = false;
       this.updateButtonState();
-      // MUDANÇA: Reinicia a escuta se o assistente ainda estiver ativo
       if (this.isAssistantActive) {
-        setTimeout(() => this.startPassiveListening(), 250); // Reinicia após um pequeno intervalo
+        setTimeout(() => this.startPassiveListening(), 250);
       }
     };
     
     this.recognition.onerror = (event) => {
-        // Ignora o erro 'no-speech' que acontece quando ninguém fala
-        if (event.error !== 'no-speech') {
-            console.error('Erro de reconhecimento:', event.error);
-        }
+      if (event.error !== 'no-speech') {
+        console.error('Erro de reconhecimento:', event.error);
+      }
     };
   }
 
-  // NOVA FUNÇÃO: Processa comandos locais primeiro
+  setupClickToRead() {
+    document.addEventListener('click', (event) => {
+      if (!this.isAssistantActive || !this.isActivated) return;
+      
+      const target = event.target;
+      let text = target.innerText || target.textContent || target.alt || target.title;
+      
+      if (target.tagName === 'A' && target.href) {
+        const linkText = text.trim();
+        const href = target.href;
+        text = `Link: ${linkText}. Destino: ${href}`;
+      } else if (target.tagName === 'IMG') {
+        text = `Imagem: ${target.alt || target.title || 'sem descrição'}`;
+      } else if (target.tagName === 'BUTTON') {
+        text = `Botão: ${text}`;
+      }
+      
+      if (text && text.trim().length > 0 && text.trim().length < 500) {
+        this.speak(text.trim());
+      }
+    }, true);
+    
+    document.addEventListener('mouseover', (event) => {
+      if (!this.isAssistantActive || !this.isActivated) return;
+      
+      const target = event.target;
+      
+      if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'IMG') {
+        const text = target.getAttribute('title') || target.getAttribute('alt') || target.innerText;
+        
+        if (text && text.trim().length > 0 && text.trim().length < 200) {
+          // Fala mais baixo para hover
+          const utterance = new SpeechSynthesisUtterance(text.trim());
+          utterance.lang = 'pt-BR';
+          utterance.rate = 1.2;
+          utterance.volume = 0.7;
+          this.synthesis.speak(utterance);
+        }
+      }
+    });
+  }
+
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (event) => {
+      if (!this.isAssistantActive) return;
+      
+      // Ctrl + Shift + A para ativar/desativar assistente
+      if (event.ctrlKey && event.shiftKey && event.key === 'A') {
+        event.preventDefault();
+        this.activateAndListen();
+      }
+      
+      // Escape para parar fala
+      if (event.key === 'Escape') {
+        this.synthesis.cancel();
+        if (this.isActivated) {
+          this.speak('Parado.', false);
+        }
+      }
+    });
+  }
+
   processLocalCommand(transcript) {
     const command = transcript.toLowerCase();
     
     // Comandos de leitura
     if (command.includes('ler página') || command.includes('ler conteúdo') || command.includes('ler texto')) {
-      this.readPage();
-      return 'Lendo o conteúdo da página.';
+      return { action: 'readPage', text: 'Lendo o conteúdo da página.' };
     }
     
     if (command.includes('resumir') || command.includes('resumo') || command.includes('resuma')) {
-      this.summarizePage();
-      return 'Gerando resumo da página.';
+      return { action: 'summarizePage', text: 'Gerando resumo da página.' };
     }
     
     if (command.includes('ler título')) {
-      this.readPageTitle();
-      return 'Lendo o título da página.';
+      return { action: 'readPageTitle', text: 'Lendo o título da página.' };
     }
     
     if (command.includes('ler títulos') || command.includes('ler cabeçalhos')) {
-      this.readHeadings();
-      return 'Lendo os títulos da página.';
+      return { action: 'readHeadings', text: 'Lendo os títulos da página.' };
     }
     
     if (command.includes('ler links')) {
-      this.readLinks();
-      return 'Lendo os links da página.';
+      return { action: 'readLinks', text: 'Lendo os links da página.' };
     }
     
     // Comandos de acessibilidade
     if (command.includes('aumentar fonte') || command.includes('fonte maior')) {
-      this.increaseFontSize();
-      return 'Fonte aumentada.';
+      return { action: 'increaseFontSize', text: 'Fonte aumentada.' };
     }
     
     if (command.includes('diminuir fonte') || command.includes('fonte menor')) {
-      this.decreaseFontSize();
-      return 'Fonte diminuída.';
+      return { action: 'decreaseFontSize', text: 'Fonte diminuída.' };
     }
     
     if (command.includes('alto contraste')) {
-      this.toggleHighContrast();
-      return 'Alto contraste alternado.';
+      return { action: 'toggleHighContrast', text: 'Alto contraste alternado.' };
     }
     
     // Comandos de zoom
     if (command.includes('zoom in') || command.includes('aumentar zoom')) {
-      this.zoomIn();
-      return 'Zoom aumentado.';
+      return { action: 'zoomIn', text: 'Zoom aumentado.' };
     }
     
     if (command.includes('zoom out') || command.includes('diminuir zoom')) {
-      this.zoomOut();
-      return 'Zoom diminuído.';
+      return { action: 'zoomOut', text: 'Zoom diminuído.' };
     }
     
     if (command.includes('reset zoom') || command.includes('zoom normal')) {
-      this.resetZoom();
-      return 'Zoom resetado.';
+      return { action: 'resetZoom', text: 'Zoom resetado.' };
     }
     
     // Comandos de navegação
     if (command.includes('voltar') || command.includes('anterior')) {
-      this.goBack();
-      return 'Voltando para a página anterior.';
+      return { action: 'goBack', text: 'Voltando para a página anterior.' };
     }
     
     if (command.includes('avançar') || command.includes('próximo')) {
-      this.goForward();
-      return 'Avançando para a próxima página.';
+      return { action: 'goForward', text: 'Avançando para a próxima página.' };
     }
     
     if (command.includes('recarregar') || command.includes('atualizar')) {
-      this.reloadPage();
-      return 'Recarregando a página.';
+      return { action: 'reloadPage', text: 'Recarregando a página.' };
     }
     
     // Comandos de rolagem
     if (command.includes('rolar cima') || command.includes('scroll up')) {
-      this.scrollUp();
-      return 'Rolando para cima.';
+      return { action: 'scrollUp', text: 'Rolando para cima.' };
     }
     
     if (command.includes('rolar baixo') || command.includes('scroll down')) {
-      this.scrollDown();
-      return 'Rolando para baixo.';
+      return { action: 'scrollDown', text: 'Rolando para baixo.' };
     }
     
     if (command.includes('topo') || command.includes('início')) {
-      this.scrollToTop();
-      return 'Indo para o topo da página.';
+      return { action: 'scrollToTop', text: 'Indo para o topo da página.' };
     }
     
     if (command.includes('final') || command.includes('fim')) {
-      this.scrollToBottom();
-      return 'Indo para o final da página.';
+      return { action: 'scrollToBottom', text: 'Indo para o final da página.' };
     }
     
-    // Se não encontrou comando local, retorna null para enviar ao background
+    // Comandos de busca
+    if (command.includes('buscar') || command.includes('procurar') || command.includes('pesquisar')) {
+      const searchTerm = this.extractSearchTerm(command);
+      if (searchTerm) {
+        return { action: 'searchByVoice', parameter: searchTerm, text: `Buscando por: ${searchTerm}` };
+      }
+    }
+    
+    // Comandos de abas
+    if (command.includes('nova aba') || command.includes('abrir aba')) {
+      return { action: 'openNewTab', text: 'Abrindo nova aba.' };
+    }
+    
+    if (command.includes('fechar aba')) {
+      return { action: 'closeTab', text: 'Fechando aba atual.' };
+    }
+    
+    if (command.includes('próxima aba') || command.includes('alternar aba')) {
+      return { action: 'switchTab', text: 'Alternando para próxima aba.' };
+    }
+    
+    // Comando de procurar na página
+    if (command.includes('procurar na página') || command.includes('encontrar na página')) {
+      const searchTerm = this.extractSearchTerm(command);
+      if (searchTerm) {
+        return { action: 'findInPage', parameter: searchTerm, text: `Procurando na página por: ${searchTerm}` };
+      }
+    }
+    
     return null;
   }
 
-  // MUDANÇA: Inicia a escuta
+  extractSearchTerm(command) {
+    const searchWords = ['buscar', 'procurar', 'pesquisar', 'encontrar'];
+    let searchTerm = command;
+    
+    for (const word of searchWords) {
+      if (searchTerm.includes(word)) {
+        searchTerm = searchTerm.replace(word, '').replace('por', '').replace('na página', '').trim();
+        break;
+      }
+    }
+    
+    return searchTerm || null;
+  }
+
   startPassiveListening() {
     if (this.isAssistantActive && !this.isListening) {
       try {
@@ -255,31 +355,26 @@ class AccessibilityContentScript {
         this.isListening = true;
         this.updateButtonState();
       } catch (e) {
-        // Captura o erro 'InvalidStateError' se já estiver iniciado
         this.isListening = false;
       }
     }
   }
 
-  // Função para o clique do botão
   activateAndListen() {
-      if (!this.isAssistantActive) {
-          this.speak("Assistente desativado.");
-          return;
-      }
-      
-      this.synthesis.cancel(); // Para qualquer fala
-      
-      if (this.isActivated) {
-          // Se já está ativado, desativa
-          this.deactivateAssistant();
-      } else {
-          // Se não está ativado, ativa
-          this.activateAssistant();
-      }
+    if (!this.isAssistantActive) {
+      this.speak("Assistente desativado.");
+      return;
+    }
+    
+    this.synthesis.cancel();
+    
+    if (this.isActivated) {
+      this.deactivateAssistant();
+    } else {
+      this.activateAssistant();
+    }
   }
 
-  // NOVA FUNÇÃO: Ativa o assistente
   activateAssistant() {
     this.isActivated = true;
     this.speak('Assistente ativado. Pode falar.', false);
@@ -287,7 +382,6 @@ class AccessibilityContentScript {
     this.resetActivationTimeout();
   }
 
-  // NOVA FUNÇÃO: Desativa o assistente
   deactivateAssistant() {
     this.isActivated = false;
     this.speak("Assistente desativado.", false);
@@ -295,19 +389,16 @@ class AccessibilityContentScript {
     this.clearActivationTimeout();
   }
 
-  // NOVA FUNÇÃO: Reseta o timeout de ativação
   resetActivationTimeout() {
     this.clearActivationTimeout();
-    // Desativa automaticamente após 30 segundos de inatividade
     this.activationTimeout = setTimeout(() => {
       if (this.isActivated) {
         this.speak("Desativando assistente por inatividade.", false);
         this.deactivateAssistant();
       }
-    }, 30000); // 30 segundos
+    }, 30000);
   }
 
-  // NOVA FUNÇÃO: Limpa o timeout
   clearActivationTimeout() {
     if (this.activationTimeout) {
       clearTimeout(this.activationTimeout);
@@ -320,59 +411,25 @@ class AccessibilityContentScript {
     if (!button) return;
     
     if (this.isActivated) {
-      button.style.backgroundColor = '#ff6b6b'; // Cor de ativo (vermelho)
-      button.textContent = '🎤'; // Ícone de microfone ativo
+      button.style.backgroundColor = '#ff6b6b';
+      button.textContent = '🎤';
+      button.style.animation = 'pulse 1s infinite';
     } else if (this.isListening) {
-      button.style.backgroundColor = '#ffa500'; // Cor de escuta passiva (laranja)
-      button.textContent = '👂'; // Ícone de ouvido
+      button.style.backgroundColor = '#ffa500';
+      button.textContent = '👂';
+      button.style.animation = 'none';
     } else if (this.isAssistantActive) {
-      button.style.backgroundColor = '#764ba2'; // Cor normal
-      button.textContent = '🎤'; // Ícone normal
+      button.style.backgroundColor = '#764ba2';
+      button.textContent = '🎤';
+      button.style.animation = 'none';
     } else {
-      button.style.backgroundColor = '#6c757d'; // Cor inativa
-      button.textContent = '🔇'; // Ícone mudo
+      button.style.backgroundColor = '#6c757d';
+      button.textContent = '🔇';
+      button.style.animation = 'none';
     }
   }
 
-  setupClickToRead() {
-    // Adiciona funcionalidade de clique para ler elementos
-    document.addEventListener('click', (event) => {
-      if (!this.isAssistantActive || !this.isActivated) return;
-      
-      const target = event.target;
-      let text = target.innerText || target.textContent;
-      
-      // Se for um link, adiciona informação sobre o destino
-      if (target.tagName === 'A' && target.href) {
-        const linkText = text.trim();
-        const href = target.href;
-        text = `Link: ${linkText}. Destino: ${href}`;
-      }
-      
-      // Se o elemento tem texto e não é muito pequeno, lê o texto
-      if (text && text.trim().length > 5 && text.trim().length < 500) {
-        this.speak(text.trim());
-      }
-    }, true);
-    
-    // Adiciona hover para ler elementos (opcional)
-    document.addEventListener('mouseover', (event) => {
-      if (!this.isAssistantActive || !this.isActivated) return;
-      
-      const target = event.target;
-      const text = target.getAttribute('title') || target.getAttribute('alt') || target.innerText;
-      
-      // Só lê se for um elemento importante (botões, links, imagens)
-      if (text && (target.tagName === 'BUTTON' || target.tagName === 'A' || target.tagName === 'IMG')) {
-        if (text.trim().length > 0 && text.trim().length < 200) {
-          this.speak(text.trim());
-        }
-      }
-    });
-  }
-
   handleMessage(message, sender, sendResponse) {
-    // Handler para ping - verifica se o content script está ativo
     if (message.action === 'ping') {
       sendResponse({ status: 'active', timestamp: Date.now() });
       return;
@@ -388,33 +445,63 @@ class AccessibilityContentScript {
       this.updateButtonState();
     }
     
-    // MUDANÇA: Nova ação para executar comandos e falar
     if (message.action === 'executeAndSpeak') {
-        if (message.command) {
-            // Comandos especiais que precisam de parâmetros
-            if (message.command === 'searchByVoice' && message.searchTerm) {
-                this.searchByVoice(message.searchTerm);
-            } else if (message.command === 'navigateToUrl' && message.url) {
-                this.navigateToUrl(message.url);
-            } else {
-                // Comandos normais
-                this[message.command](); // Chama a função local (ex: this.increaseFontSize())
-            }
+      if (message.command) {
+        if (message.command === 'searchByVoice' && message.parameter) {
+          this.searchByVoice(message.parameter);
+        } else if (message.command === 'openNewTab') {
+          this.openNewTab(message.parameter);
+        } else if (message.command === 'closeTab') {
+          this.closeTab();
+        } else if (message.command === 'switchTab') {
+          this.switchTab();
+        } else if (message.command === 'findInPage' && message.parameter) {
+          this.findInPage(message.parameter);
+        } else if (this[message.command]) {
+          this[message.command](message.parameter);
         }
-        if (message.textToSpeak) {
-            this.speak(message.textToSpeak);
-        }
+      }
+      if (message.textToSpeak) {
+        this.speak(message.textToSpeak);
+      }
     }
 
-    if(message.action === 'speak') {
-        this.speak(message.text);
+    if (message.action === 'speak') {
+      this.speak(message.text);
     }
   }
 
-  // --- Suas funções de acessibilidade ---
-  increaseFontSize() { document.body.style.fontSize = `${parseFloat(getComputedStyle(document.body).fontSize) + 2}px`; }
-  decreaseFontSize() { document.body.style.fontSize = `${parseFloat(getComputedStyle(document.body).fontSize) - 2}px`; }
-  toggleHighContrast() { document.body.classList.toggle('high-contrast-mode-accessibility'); /* Adicione seu CSS de alto contraste */ }
+  // Funções de acessibilidade
+  increaseFontSize() { 
+    document.body.style.fontSize = `${parseFloat(getComputedStyle(document.body).fontSize) + 2}px`; 
+  }
+  
+  decreaseFontSize() { 
+    document.body.style.fontSize = `${parseFloat(getComputedStyle(document.body).fontSize) - 2}px`; 
+  }
+  
+  toggleHighContrast() { 
+    if (!document.getElementById('high-contrast-style')) {
+      const style = document.createElement('style');
+      style.id = 'high-contrast-style';
+      style.textContent = `
+        * {
+          background-color: black !important;
+          color: white !important;
+          border-color: white !important;
+        }
+        a, a * {
+          color: yellow !important;
+        }
+        img {
+          filter: contrast(200%) brightness(150%) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    } else {
+      document.getElementById('high-contrast-style').remove();
+    }
+  }
   
   readPageTitle() {
     const title = document.title || 'Página sem título';
@@ -427,7 +514,7 @@ class AccessibilityContentScript {
       const headingText = Array.from(headings)
         .map(h => h.innerText.trim())
         .filter(text => text.length > 0)
-        .slice(0, 10) // Limita a 10 títulos
+        .slice(0, 10)
         .join('. ');
       this.speak(`Títulos da página: ${headingText}`);
     } else {
@@ -441,7 +528,7 @@ class AccessibilityContentScript {
       const linkText = Array.from(links)
         .map(link => link.innerText.trim())
         .filter(text => text.length > 0 && text.length < 50)
-        .slice(0, 10) // Limita a 10 links
+        .slice(0, 10)
         .join('. ');
       this.speak(`Links encontrados: ${linkText}`);
     } else {
@@ -449,12 +536,9 @@ class AccessibilityContentScript {
     }
   }
   
-  // NOVA FUNÇÃO: Busca por voz
   searchByVoice(searchTerm) {
-    // Tenta diferentes métodos de busca
     let searchBox = null;
     
-    // Procura por diferentes tipos de campos de busca
     const searchSelectors = [
       'input[type="search"]',
       'input[name*="search"]',
@@ -475,19 +559,15 @@ class AccessibilityContentScript {
     }
     
     if (searchBox) {
-      // Foca no campo de busca
       searchBox.focus();
       searchBox.value = searchTerm;
       
-      // Dispara evento de input para ativar funcionalidades de busca
       searchBox.dispatchEvent(new Event('input', { bubbles: true }));
       
-      // Tenta submeter o formulário
       const form = searchBox.closest('form');
       if (form) {
         form.submit();
       } else {
-        // Se não há formulário, simula Enter
         searchBox.dispatchEvent(new KeyboardEvent('keydown', {
           key: 'Enter',
           code: 'Enter',
@@ -499,70 +579,44 @@ class AccessibilityContentScript {
       
       this.speak(`Buscando por: ${searchTerm}`);
     } else {
-      // Se não encontrou campo de busca, abre nova aba com Google
       const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`;
       window.open(googleSearchUrl, '_blank');
       this.speak(`Abrindo busca no Google para: ${searchTerm}`);
     }
   }
   
-  // NOVA FUNÇÃO: Navegar para URL
-  navigateToUrl(url) {
-    if (url.startsWith('http')) {
-      window.location.href = url;
-    } else {
-      window.location.href = `https://${url}`;
-    }
-    this.speak(`Navegando para: ${url}`);
-  }
-  
-  // NOVA FUNÇÃO: Voltar página
   goBack() {
     if (window.history.length > 1) {
       window.history.back();
-      this.speak('Voltando para a página anterior.');
     } else {
       this.speak('Não há páginas anteriores para voltar.');
     }
   }
   
-  // NOVA FUNÇÃO: Avançar página
   goForward() {
     window.history.forward();
-    this.speak('Avançando para a próxima página.');
   }
   
-  // NOVA FUNÇÃO: Recarregar página
   reloadPage() {
     window.location.reload();
-    this.speak('Recarregando a página.');
   }
   
-  // NOVA FUNÇÃO: Rolar para cima
   scrollUp() {
     window.scrollBy(0, -300);
-    this.speak('Rolando para cima.');
   }
   
-  // NOVA FUNÇÃO: Rolar para baixo
   scrollDown() {
     window.scrollBy(0, 300);
-    this.speak('Rolando para baixo.');
   }
   
-  // NOVA FUNÇÃO: Ir para o topo
   scrollToTop() {
     window.scrollTo(0, 0);
-    this.speak('Indo para o topo da página.');
   }
   
-  // NOVA FUNÇÃO: Ir para o final
   scrollToBottom() {
     window.scrollTo(0, document.body.scrollHeight);
-    this.speak('Indo para o final da página.');
   }
   
-  // NOVA FUNÇÃO: Zoom in
   zoomIn() {
     const currentZoom = document.body.style.zoom || 1;
     const newZoom = Math.min(parseFloat(currentZoom) + 0.1, 3);
@@ -570,7 +624,6 @@ class AccessibilityContentScript {
     this.speak(`Zoom aumentado para ${Math.round(newZoom * 100)}%.`);
   }
   
-  // NOVA FUNÇÃO: Zoom out
   zoomOut() {
     const currentZoom = document.body.style.zoom || 1;
     const newZoom = Math.max(parseFloat(currentZoom) - 0.1, 0.5);
@@ -578,18 +631,14 @@ class AccessibilityContentScript {
     this.speak(`Zoom diminuído para ${Math.round(newZoom * 100)}%.`);
   }
   
-  // NOVA FUNÇÃO: Reset zoom
   resetZoom() {
     document.body.style.zoom = 1;
     this.speak('Zoom resetado para 100%.');
   }
   
-  // FUNÇÃO MELHORADA: Ler página completa
   readPage() {
-    // Tenta diferentes seletores para encontrar o conteúdo principal
     let content = '';
     
-    // Primeiro tenta elementos semânticos principais
     const selectors = [
       'main',
       'article',
@@ -611,23 +660,20 @@ class AccessibilityContentScript {
       }
     }
     
-    // Se não encontrou, usa o body mas filtra elementos desnecessários
     if (!content) {
       const body = document.body.cloneNode(true);
       
-      // Remove elementos que não são conteúdo principal
       const elementsToRemove = body.querySelectorAll('nav, header, footer, .sidebar, .menu, .advertisement, script, style, .hidden, .sr-only, .ads, .advertisement, .banner, .popup, .modal, .overlay');
       elementsToRemove.forEach(el => el.remove());
       
       content = body.innerText;
     }
     
-    // Limpa o texto
     const cleanText = content
       .replace(/\s+/g, ' ')
       .replace(/\n+/g, ' ')
       .trim()
-      .substring(0, 3000); // Aumentei o limite para 3000 caracteres
+      .substring(0, 3000);
     
     if (cleanText.length > 0) {
       this.speak(`Lendo o conteúdo da página. ${cleanText}`);
@@ -636,12 +682,10 @@ class AccessibilityContentScript {
     }
   }
   
-  // NOVA FUNÇÃO: Resumir página com IA
   async summarizePage() {
     try {
       this.speak('Gerando resumo da página com inteligência artificial...');
       
-      // Obtém o conteúdo da página
       let content = '';
       const selectors = [
         'main',
@@ -669,7 +713,6 @@ class AccessibilityContentScript {
         content = body.innerText;
       }
       
-      // Limpa o texto
       const cleanText = content
         .replace(/\s+/g, ' ')
         .replace(/\n+/g, ' ')
@@ -681,7 +724,6 @@ class AccessibilityContentScript {
         return;
       }
       
-      // Envia para o background script para processar com IA
       chrome.runtime.sendMessage({
         action: 'summarizeContent',
         content: cleanText,
@@ -691,11 +733,11 @@ class AccessibilityContentScript {
         if (response && response.summary) {
           this.speak(`Resumo da página: ${response.summary}`);
         } else {
-          this.speak('Não foi possível gerar um resumo. Verifique se a IA está configurada.');
+          this.speak('Não foi possível gerar um resumo. Tente novamente.');
         }
       }).catch(error => {
         console.error('Erro ao gerar resumo:', error);
-        this.speak('Erro ao gerar resumo. Tente novamente.');
+        this.speak('Erro ao gerar resumo da página.');
       });
       
     } catch (error) {
@@ -703,9 +745,53 @@ class AccessibilityContentScript {
       this.speak('Erro ao gerar resumo da página.');
     }
   }
+
+  // Novos comandos avançados
+  openNewTab(url = null) {
+    chrome.runtime.sendMessage({
+      action: 'executeAdvancedCommand',
+      command: 'openNewTab',
+      parameter: url
+    });
+  }
+
+  closeTab() {
+    chrome.runtime.sendMessage({
+      action: 'executeAdvancedCommand',
+      command: 'closeTab'
+    });
+  }
+
+  switchTab() {
+    chrome.runtime.sendMessage({
+      action: 'executeAdvancedCommand',
+      command: 'switchTab'
+    });
+  }
+
+  findInPage(searchTerm) {
+    if (searchTerm) {
+      chrome.runtime.sendMessage({
+        action: 'executeAdvancedCommand',
+        command: 'findInPage',
+        parameter: searchTerm
+      });
+    }
+  }
 }
 
 // Garante que o script só rode uma vez
 if (typeof accessibilityScript === 'undefined') {
   var accessibilityScript = new AccessibilityContentScript();
+  
+  // Adiciona CSS para animação do botão
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+  `;
+  document.head.appendChild(style);
 }

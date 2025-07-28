@@ -62,13 +62,13 @@
 
 ## ⚙️ Configuração da IA
 
-Para usar o resumo inteligente:
+A IA já está configurada e pronta para uso! Não é necessário configurar nenhuma chave da API.
 
-1. Abra o popup da extensão
-2. Vá na aba "Configurações"
-3. Insira sua chave da API Gemini
-4. Clique em "Salvar Chave"
-5. Ative a opção "Usar IA"
+A extensão agora inclui:
+- IA sempre ativa para entender comandos naturais
+- Processamento inteligente de comandos de voz
+- Respostas contextuais baseadas no conteúdo da página
+- Comandos avançados de navegação e acessibilidade
 
 ## 🔧 Solução de Problemas
 
@@ -99,6 +99,8 @@ Para usar o resumo inteligente:
 2. Diga "ler títulos" para ver a estrutura
 3. Diga "ler links" para ver as opções
 4. Use "buscar [termo]" para encontrar algo
+5. Diga "abrir nova aba" para navegar em paralelo
+6. Use "próxima aba" para alternar entre abas
 
 ### Para ajustar a acessibilidade:
 1. Ative o assistente
@@ -106,9 +108,17 @@ Para usar o resumo inteligente:
 3. Diga "alto contraste" para melhor visibilidade
 4. Use "zoom in" para ampliar
 
+### Comandos avançados com IA:
+1. "Me explique esta página" - Análise inteligente do conteúdo
+2. "O que posso fazer aqui?" - Sugestões contextuais
+3. "Procure por informações sobre tecnologia" - Busca inteligente
+4. "Abra uma nova aba com Google" - Navegação assistida
+
 ## 🎯 Dicas Importantes
 
 - O assistente se desativa automaticamente após 30 segundos de inatividade
 - Para parar qualquer ação, diga "para" ou "pare"
 - Para reativar, diga "ok assistente" novamente
-- O botão flutuante mostra o status: azul (inativo), laranja (escutando), vermelho (ativo) 
+- O botão flutuante mostra o status: azul (inativo), laranja (escutando), vermelho (ativo)
+- A IA entende comandos naturais - fale como se estivesse conversando
+- Use Ctrl+Shift+A como atalho de teclado para ativar o assistente

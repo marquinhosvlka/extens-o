@@ -1,8 +1,9 @@
-// background.js (Corrigido e mais inteligente com integração Gemini)
+// background.js (Melhorado com chave integrada e funcionalidades expandidas)
 
-// Configuração do Gemini (incluída diretamente para evitar problemas de import)
+// Configuração do Gemini com chave integrada
 const GEMINI_CONFIG = {
   API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+  API_KEY: 'AIzaSyB2AG4ZV2JWHB9DwOkcFl40f5n4FmNWS-E', // Chave integrada
   MODEL_CONFIG: {
     temperature: 0.7,
     topK: 40,
@@ -11,20 +12,14 @@ const GEMINI_CONFIG = {
   }
 };
 
-// Classe Gemini Service (simplificada para o background)
+// Classe Gemini Service melhorada
 class GeminiService {
   constructor() {
-    this.apiKey = null;
-    this.loadApiKey();
-  }
-
-  async loadApiKey() {
-    const result = await chrome.storage.sync.get(['geminiApiKey']);
-    this.apiKey = result.geminiApiKey;
+    this.apiKey = GEMINI_CONFIG.API_KEY;
   }
 
   isConfigured() {
-    return this.apiKey && this.apiKey !== 'SUA_CHAVE_API_AQUI';
+    return this.apiKey && this.apiKey.length > 20;
   }
 
   async generateResponse(prompt, context = '') {
@@ -68,101 +63,109 @@ class GeminiService {
   }
 
   buildPrompt(userPrompt, context = '') {
-    return `Você é um assistente de acessibilidade para navegação web. 
-    Sua função é ajudar usuários com deficiência visual a navegar na internet.
+    return `Você é um assistente de acessibilidade para navegação web especializado em ajudar pessoas com deficiência visual.
+    Sua função é interpretar comandos de voz e convertê-los em ações específicas.
 
     CONTEXTO DA PÁGINA ATUAL:
     ${context}
 
     COMANDO DO USUÁRIO:
-    ${userPrompt}
+    "${userPrompt}"
 
     INSTRUÇÕES:
-    1. Analise o comando do usuário e o contexto da página
-    2. Se for um comando de acessibilidade, responda com o comando específico
-    3. Se for uma pergunta sobre o conteúdo da página, responda de forma clara
-    4. Mantenha suas respostas curtas e diretas (máximo 200 palavras)
-    5. Responda sempre em português brasileiro
+    1. Analise o comando do usuário e determine a melhor ação
+    2. Se for um comando de navegação/acessibilidade, responda com o comando específico
+    3. Se for uma pergunta sobre conteúdo, responda de forma clara e concisa
+    4. Se for uma solicitação de busca, extraia o termo de busca
+    5. Mantenha respostas curtas e diretas (máximo 150 palavras)
+    6. Responda sempre em português brasileiro
+    7. Se não entender, peça esclarecimento
 
-    COMANDOS DE ACESSIBILIDADE DISPONÍVEIS:
-    - increaseFontSize: aumentar fonte
-    - decreaseFontSize: diminuir fonte  
+    COMANDOS DISPONÍVEIS:
+    - increaseFontSize: aumentar tamanho da fonte
+    - decreaseFontSize: diminuir tamanho da fonte  
     - toggleHighContrast: alternar alto contraste
-    - zoomIn: aumentar zoom
-    - zoomOut: diminuir zoom
-    - resetZoom: resetar zoom
-    - readPage: ler conteúdo da página
-    - readPageTitle: ler título da página
-    - readHeadings: ler títulos e subtítulos
-    - readLinks: ler links da página
-    - searchByVoice: buscar por termo
-    - goBack: voltar página
-    - goForward: avançar página
-    - reloadPage: recarregar página
-    - scrollUp: rolar para cima
-    - scrollDown: rolar para baixo
-    - scrollToTop: ir para o topo
-    - scrollToBottom: ir para o final
+    - zoomIn: aumentar zoom da página
+    - zoomOut: diminuir zoom da página
+    - resetZoom: resetar zoom para 100%
+    - readPage: ler todo o conteúdo da página
+    - readPageTitle: ler apenas o título da página
+    - readHeadings: ler todos os títulos e subtítulos
+    - readLinks: ler todos os links da página
+    - searchByVoice: buscar por termo específico
+    - goBack: voltar para página anterior
+    - goForward: avançar para próxima página
+    - reloadPage: recarregar a página atual
+    - scrollUp: rolar página para cima
+    - scrollDown: rolar página para baixo
+    - scrollToTop: ir para o topo da página
+    - scrollToBottom: ir para o final da página
+    - openNewTab: abrir nova aba
+    - closeTab: fechar aba atual
+    - switchTab: alternar entre abas
+    - findInPage: procurar texto na página
+    - clickElement: clicar em elemento específico
+    - fillForm: preencher formulário
+    - submitForm: enviar formulário
 
-    RESPOSTA:`;
+    EXEMPLOS DE INTERPRETAÇÃO:
+    - "aumentar o texto" → increaseFontSize
+    - "fazer zoom" → zoomIn
+    - "ler esta página" → readPage
+    - "buscar por notícias" → searchByVoice com termo "notícias"
+    - "voltar" → goBack
+    - "ir para o topo" → scrollToTop
+    - "abrir nova aba" → openNewTab
+    - "procurar por tecnologia" → findInPage com termo "tecnologia"
+
+    RESPOSTA (formato JSON):
+    {
+      "action": "comando_específico_ou_null",
+      "text": "resposta_para_falar",
+      "parameter": "parâmetro_adicional_se_necessário",
+      "confidence": 0.8
+    }`;
   }
 
   async processVoiceCommand(command, pageContext = '') {
     try {
       const response = await this.generateResponse(command, pageContext);
       
-      const commandMatch = this.extractCommand(response);
+      // Tenta extrair JSON da resposta
+      let parsedResponse;
+      try {
+        // Procura por JSON na resposta
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedResponse = JSON.parse(jsonMatch[0]);
+        } else {
+          // Se não encontrou JSON, cria resposta padrão
+          parsedResponse = {
+            action: null,
+            text: response,
+            parameter: null,
+            confidence: 0.5
+          };
+        }
+      } catch (parseError) {
+        // Se falhou ao parsear JSON, usa resposta como texto
+        parsedResponse = {
+          action: null,
+          text: response,
+          parameter: null,
+          confidence: 0.5
+        };
+      }
       
-      return {
-        text: response,
-        command: commandMatch?.command || null,
-        confidence: commandMatch?.confidence || 0
-      };
+      return parsedResponse;
     } catch (error) {
       return {
+        action: null,
         text: 'Desculpe, não consegui processar seu comando. Tente novamente.',
-        command: null,
+        parameter: null,
         confidence: 0
       };
     }
-  }
-
-  extractCommand(response) {
-    const commands = {
-      'increaseFontSize': ['aumentar fonte', 'fonte maior', 'texto maior'],
-      'decreaseFontSize': ['diminuir fonte', 'fonte menor', 'texto menor'],
-      'toggleHighContrast': ['alto contraste', 'contraste alto', 'modo contraste'],
-      'zoomIn': ['aumentar zoom', 'zoom maior', 'ampliar'],
-      'zoomOut': ['diminuir zoom', 'zoom menor', 'reduzir'],
-      'resetZoom': ['reset zoom', 'zoom normal', 'zoom padrão'],
-      'readPage': ['ler página', 'ler conteúdo', 'ler texto'],
-      'readPageTitle': ['ler título', 'título da página'],
-      'readHeadings': ['ler títulos', 'ler cabeçalhos', 'títulos da página'],
-      'readLinks': ['ler links', 'links da página', 'enlaces'],
-      'searchByVoice': ['buscar', 'procurar', 'pesquisar'],
-      'goBack': ['voltar', 'anterior', 'página anterior'],
-      'goForward': ['avançar', 'próximo', 'próxima página'],
-      'reloadPage': ['recarregar', 'atualizar', 'refresh'],
-      'scrollUp': ['rolar cima', 'scroll up', 'subir'],
-      'scrollDown': ['rolar baixo', 'scroll down', 'descer'],
-      'scrollToTop': ['topo', 'início', 'começo'],
-      'scrollToBottom': ['final', 'fim', 'último']
-    };
-
-    const lowerResponse = response.toLowerCase();
-    
-    for (const [command, keywords] of Object.entries(commands)) {
-      for (const keyword of keywords) {
-        if (lowerResponse.includes(keyword)) {
-          return {
-            command: command,
-            confidence: 0.8
-          };
-        }
-      }
-    }
-
-    return null;
   }
 
   async getPageContext() {
@@ -180,6 +183,20 @@ class GeminiService {
             headings: Array.from(document.querySelectorAll('h1, h2, h3'))
               .map(h => h.textContent.trim())
               .slice(0, 5),
+            links: Array.from(document.querySelectorAll('a[href]'))
+              .map(a => a.textContent.trim())
+              .filter(text => text.length > 0)
+              .slice(0, 10),
+            forms: Array.from(document.querySelectorAll('form'))
+              .map(form => ({
+                action: form.action,
+                inputs: Array.from(form.querySelectorAll('input, select, textarea'))
+                  .map(input => ({
+                    type: input.type,
+                    name: input.name,
+                    placeholder: input.placeholder
+                  }))
+              })),
             mainContent: document.querySelector('main, article, .content, #content')?.textContent?.substring(0, 500) || ''
           };
         }
@@ -191,6 +208,8 @@ class GeminiService {
           Título: ${context.title}
           URL: ${context.url}
           Títulos principais: ${context.headings.join(', ')}
+          Links disponíveis: ${context.links.join(', ')}
+          Formulários: ${context.forms.length > 0 ? 'Sim' : 'Não'}
           Conteúdo principal: ${context.mainContent}
         `;
       }
@@ -206,24 +225,21 @@ class GeminiService {
 // Instância global do serviço Gemini
 const geminiService = new GeminiService();
 
-// A função de fala global não é mais necessária aqui, pois o content.js cuidará disso.
-
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    await chrome.storage.sync.set({ assistantActive: true, voiceSpeed: 1.0, voicePitch: 1.0 });
-    // Não vai mais falar daqui, o content script cuidará dos sons.
+    await chrome.storage.sync.set({ 
+      assistantActive: true, 
+      voiceSpeed: 1.0, 
+      voicePitch: 1.0,
+      aiEnabled: true // IA sempre ativada por padrão
+    });
   }
 });
-
-chrome.runtime.onStartup.addListener(async () => {
-  console.log("Navegador iniciado. O estado do assistente será controlado pelo content script.");
-});
-
 
 class AssistantBackground {
   constructor() {
     this.isActive = false;
-    this.settings = { voiceSpeed: 1.0, voicePitch: 1.0 };
+    this.settings = { voiceSpeed: 1.0, voicePitch: 1.0, aiEnabled: true };
     this.init();
   }
 
@@ -236,39 +252,28 @@ class AssistantBackground {
     const result = await chrome.storage.sync.get(['voiceSpeed', 'voicePitch', 'assistantActive', 'aiEnabled']);
     this.settings.voiceSpeed = result.voiceSpeed || 1.0;
     this.settings.voicePitch = result.voicePitch || 1.0;
-    this.isActive = result.assistantActive !== undefined ? result.assistantActive : true; // Ativo por padrão
-    this.settings.aiEnabled = result.aiEnabled !== false; // Padrão: true
+    this.isActive = result.assistantActive !== undefined ? result.assistantActive : true;
+    this.settings.aiEnabled = result.aiEnabled !== false; // Sempre true por padrão
   }
 
   bindEvents() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       this.handleMessage(message, sender, sendResponse);
-      return true; // Essencial para respostas assíncronas
+      return true;
     });
   }
 
   async handleMessage(message, sender, sendResponse) {
     if (message.action === 'processVoiceCommand') {
-      // Recarrega a chave da API antes de processar
-      await geminiService.loadApiKey();
-      
       const result = await this.processVoiceCommand(message.transcript, sender.tab?.id);
       
-      // Envia o resultado para o content script
       if (sender.tab?.id) {
         const responseMessage = {
           action: 'executeAndSpeak',
           command: result.action,
-          textToSpeak: result.text
+          textToSpeak: result.text,
+          parameter: result.parameter
         };
-        
-        // Adiciona parâmetros especiais se necessário
-        if (result.searchTerm) {
-          responseMessage.searchTerm = result.searchTerm;
-        }
-        if (result.url) {
-          responseMessage.url = result.url;
-        }
         
         chrome.tabs.sendMessage(sender.tab.id, responseMessage).catch(e => {
           console.error("Erro ao enviar mensagem para content script:", e);
@@ -279,11 +284,8 @@ class AssistantBackground {
       return;
     }
 
-    // NOVA AÇÃO: Resumir conteúdo com IA
     if (message.action === 'summarizeContent') {
       try {
-        await geminiService.loadApiKey();
-        
         if (!geminiService.isConfigured()) {
           sendResponse({ 
             success: false, 
@@ -320,7 +322,6 @@ class AssistantBackground {
     }
 
     if (message.action === 'toggleAssistant') {
-      // Para o toggle, precisamos encontrar a aba ativa
       const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
       await this.toggleAssistant(message.active, activeTab?.id);
       sendResponse({ success: true });
@@ -328,7 +329,6 @@ class AssistantBackground {
     }
 
     if (message.action === 'updateSettings') {
-      // Atualiza as configurações
       this.settings = { ...this.settings, ...message.settings };
       await chrome.storage.sync.set(message.settings);
       sendResponse({ success: true });
@@ -337,38 +337,31 @@ class AssistantBackground {
 
     if (message.action === 'testVoice') {
       try {
-        // Teste de voz - envia para a aba ativa
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (activeTab?.id) {
-          // Primeiro verifica se o content script está carregado
           try {
             await chrome.tabs.sendMessage(activeTab.id, { action: 'ping' });
             
-            // Se chegou aqui, o content script está ativo
             chrome.tabs.sendMessage(activeTab.id, {
               action: 'speak',
-              text: message.text || 'Teste de voz funcionando!'
+              text: message.text || 'Teste de voz funcionando perfeitamente! A extensão está pronta para uso.'
             }).catch((error) => {
               console.error('Erro ao enviar mensagem de fala:', error);
             });
             
             sendResponse({ success: true, message: 'Teste enviado com sucesso' });
           } catch (error) {
-            // Content script não está carregado, tenta injetar
-            console.log('Content script não encontrado, tentando injetar...');
-            
             try {
               await chrome.scripting.executeScript({
                 target: { tabId: activeTab.id },
                 files: ['content.js']
               });
               
-              // Aguarda um pouco e tenta novamente
               setTimeout(async () => {
                 try {
                   chrome.tabs.sendMessage(activeTab.id, {
                     action: 'speak',
-                    text: message.text || 'Teste de voz funcionando!'
+                    text: message.text || 'Teste de voz funcionando! Extensão carregada com sucesso.'
                   }).catch((error) => {
                     console.error('Erro após injeção:', error);
                   });
@@ -404,25 +397,20 @@ class AssistantBackground {
 
     if (message.action === 'reloadContentScript') {
       try {
-        // Recarrega o content script na aba ativa
         const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (activeTab?.id) {
           try {
-            // Remove o content script antigo (se existir)
             await chrome.scripting.executeScript({
               target: { tabId: activeTab.id },
               func: () => {
-                // Remove o botão flutuante se existir
                 const existingButton = document.getElementById('voice-assistant-floating');
                 if (existingButton) {
                   existingButton.remove();
                 }
-                // Limpa qualquer estado do assistente
                 window.assistantInstance = null;
               }
             });
             
-            // Injeta o novo content script
             await chrome.scripting.executeScript({
               target: { tabId: activeTab.id },
               files: ['content.js']
@@ -451,15 +439,28 @@ class AssistantBackground {
       }
       return;
     }
-    
-    // As outras ações podem ser adicionadas aqui se necessário
+
+    // Nova ação para executar comandos avançados
+    if (message.action === 'executeAdvancedCommand') {
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (activeTab?.id) {
+          const result = await this.executeAdvancedCommand(message.command, message.parameter, activeTab.id);
+          sendResponse(result);
+        } else {
+          sendResponse({ success: false, error: 'Nenhuma aba ativa encontrada' });
+        }
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
+      }
+      return;
+    }
   }
 
   async toggleAssistant(active, tabId) {
     this.isActive = active;
     await chrome.storage.sync.set({ assistantActive: this.isActive });
 
-    // Notifica todas as abas sobre a mudança
     const tabs = await chrome.tabs.query({});
     for (const tab of tabs) {
       chrome.tabs.sendMessage(tab.id, {
@@ -468,18 +469,14 @@ class AssistantBackground {
       }).catch(() => {});
     }
 
-    // Manda a aba que originou o comando falar o status (se existir)
     if (tabId) {
       chrome.tabs.sendMessage(tabId, {
           action: 'speak',
-          text: this.isActive ? 'Assistente ativado.' : 'Assistente desativado.'
+          text: this.isActive ? 'Assistente ativado e pronto para uso.' : 'Assistente desativado.'
       }).catch(() => {});
     }
   }
   
-  /**
-   * NOVA LÓGICA: Integração com Gemini para processamento inteligente de comandos
-   */
   async processVoiceCommand(transcript, tabId) {
     const command = transcript.toLowerCase().trim();
     console.log(`Background processando: "${command}"`);
@@ -490,50 +487,40 @@ class AssistantBackground {
       return basicCommand;
     }
 
-    // Se não encontrou comando básico e IA está habilitada, usa o Gemini
-    if (this.settings.aiEnabled) {
+    // Usa o Gemini para processar comandos mais complexos
+    if (this.settings.aiEnabled && geminiService.isConfigured()) {
       try {
-        // Verifica se o Gemini está configurado
-        if (!geminiService.isConfigured()) {
-          return {
-            action: null,
-            text: 'IA não configurada. Configure sua chave da API Gemini nas configurações.',
-            confidence: 0
-          };
-        }
-
-        // Obtém contexto da página atual (só se tiver tabId)
         let pageContext = '';
         if (tabId) {
           pageContext = await geminiService.getPageContext();
         }
         
-        // Processa comando com IA
         const aiResponse = await geminiService.processVoiceCommand(command, pageContext);
         
         console.log('Resposta do Gemini:', aiResponse);
         
         return {
-          action: aiResponse.command || null,
+          action: aiResponse.action || null,
           text: aiResponse.text,
-          confidence: aiResponse.confidence
+          parameter: aiResponse.parameter || null,
+          confidence: aiResponse.confidence || 0.8
         };
         
       } catch (error) {
         console.error('Erro ao processar comando com Gemini:', error);
         
-        // Fallback para resposta básica
         return {
           action: null,
           text: 'Desculpe, não consegui entender seu comando. Tente novamente ou diga "ajuda" para ver os comandos disponíveis.',
+          parameter: null,
           confidence: 0
         };
       }
     } else {
-      // IA desabilitada, retorna resposta padrão
       return {
         action: null,
-        text: 'Comando não reconhecido. Diga "ajuda" para ver os comandos disponíveis ou ative a IA nas configurações.',
+        text: 'Comando não reconhecido. Diga "ajuda" para ver os comandos disponíveis.',
+        parameter: null,
         confidence: 0
       };
     }
@@ -551,7 +538,7 @@ class AssistantBackground {
         return {
           action: 'searchByVoice',
           text: `Buscando por: ${searchTerm}`,
-          searchTerm: searchTerm,
+          parameter: searchTerm,
           confidence: 1.0
         };
       }
@@ -562,6 +549,7 @@ class AssistantBackground {
       return {
         action: 'goBack',
         text: 'Voltando para a página anterior.',
+        parameter: null,
         confidence: 1.0
       };
     }
@@ -570,6 +558,7 @@ class AssistantBackground {
       return {
         action: 'goForward',
         text: 'Avançando para a próxima página.',
+        parameter: null,
         confidence: 1.0
       };
     }
@@ -578,6 +567,7 @@ class AssistantBackground {
       return {
         action: 'reloadPage',
         text: 'Recarregando a página.',
+        parameter: null,
         confidence: 1.0
       };
     }
@@ -588,24 +578,28 @@ class AssistantBackground {
         return {
           action: 'scrollUp',
           text: 'Rolando para cima.',
+          parameter: null,
           confidence: 1.0
         };
       } else if (hasAnyKeyword(['baixo', 'down'])) {
         return {
           action: 'scrollDown',
           text: 'Rolando para baixo.',
+          parameter: null,
           confidence: 1.0
         };
       } else if (hasAnyKeyword(['topo', 'início'])) {
         return {
           action: 'scrollToTop',
           text: 'Indo para o topo da página.',
+          parameter: null,
           confidence: 1.0
         };
       } else if (hasAnyKeyword(['final', 'fim'])) {
         return {
           action: 'scrollToBottom',
           text: 'Indo para o final da página.',
+          parameter: null,
           confidence: 1.0
         };
       }
@@ -617,18 +611,21 @@ class AssistantBackground {
         return {
           action: 'zoomIn',
           text: 'Zoom aumentado.',
+          parameter: null,
           confidence: 1.0
         };
       } else if (hasAnyKeyword(['diminuir', 'menos', 'out'])) {
         return {
           action: 'zoomOut',
           text: 'Zoom diminuído.',
+          parameter: null,
           confidence: 1.0
         };
       } else if (hasAnyKeyword(['reset', 'normal', 'padrão'])) {
         return {
           action: 'resetZoom',
           text: 'Zoom resetado.',
+          parameter: null,
           confidence: 1.0
         };
       }
@@ -639,59 +636,61 @@ class AssistantBackground {
         return {
           action: 'increaseFontSize',
           text: 'Fonte aumentada.',
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['diminuir', 'fonte'])) {
         return {
           action: 'decreaseFontSize',
           text: 'Fonte diminuída.',
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['contraste']) && (hasKeywords(['alto']) || hasKeywords(['auto']))) {
         return {
           action: 'toggleHighContrast',
           text: 'Alto contraste alternado.',
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['ler', 'página'])) {
         return {
           action: 'readPage',
-          text: null, // O content script vai falar o conteúdo
+          text: null,
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['ler', 'título'])) {
         return {
           action: 'readPageTitle',
-          text: null, // O content script vai falar o título
+          text: null,
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['ler', 'títulos']) || hasKeywords(['ler', 'cabeçalhos'])) {
         return {
           action: 'readHeadings',
-          text: null, // O content script vai falar os títulos
+          text: null,
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['ler', 'links'])) {
         return {
           action: 'readLinks',
-          text: null, // O content script vai falar os links
-          confidence: 1.0
-        };
-    } else if (hasKeywords(['notícias', 'dia'])) {
-        return {
-          action: null,
-          text: this.getNews(),
+          text: null,
+          parameter: null,
           confidence: 1.0
         };
     } else if (hasKeywords(['ajuda'])) {
         return {
           action: null,
           text: this.showHelp(),
+          parameter: null,
           confidence: 1.0
         };
     }
 
-    return null; // Nenhum comando básico encontrado
+    return null;
   }
 
   // Extrai termo de busca do comando
@@ -699,18 +698,9 @@ class AssistantBackground {
     const searchWords = ['buscar', 'procurar', 'pesquisar', 'encontrar'];
     let searchTerm = command;
     
-    // Remove palavras de busca do início
     for (const word of searchWords) {
-      if (searchTerm.startsWith(word)) {
-        searchTerm = searchTerm.substring(word.length).trim();
-        break;
-      }
-    }
-    
-    // Remove palavras de busca do final
-    for (const word of searchWords) {
-      if (searchTerm.endsWith(word)) {
-        searchTerm = searchTerm.substring(0, searchTerm.length - word.length).trim();
+      if (searchTerm.includes(word)) {
+        searchTerm = searchTerm.replace(word, '').trim();
         break;
       }
     }
@@ -718,9 +708,44 @@ class AssistantBackground {
     return searchTerm || null;
   }
 
-  async getNews() {
-        // Lógica para buscar notícias aqui...
-    return "Notícia 1: IA avança no Brasil. Notícia 2: Nova tecnologia para navegadores é lançada.";
+  // Executa comandos avançados
+  async executeAdvancedCommand(command, parameter, tabId) {
+    try {
+      switch (command) {
+        case 'openNewTab':
+          const newTab = await chrome.tabs.create({ url: parameter || 'chrome://newtab/' });
+          return { success: true, message: 'Nova aba aberta.' };
+
+        case 'closeTab':
+          await chrome.tabs.remove(tabId);
+          return { success: true, message: 'Aba fechada.' };
+
+        case 'switchTab':
+          const tabs = await chrome.tabs.query({ currentWindow: true });
+          const currentIndex = tabs.findIndex(tab => tab.id === tabId);
+          const nextIndex = (currentIndex + 1) % tabs.length;
+          await chrome.tabs.update(tabs[nextIndex].id, { active: true });
+          return { success: true, message: 'Alternando para próxima aba.' };
+
+        case 'findInPage':
+          if (parameter) {
+            await chrome.scripting.executeScript({
+              target: { tabId: tabId },
+              func: (searchTerm) => {
+                window.find(searchTerm, false, false, true, false, true, false);
+              },
+              args: [parameter]
+            });
+            return { success: true, message: `Procurando por: ${parameter}` };
+          }
+          return { success: false, error: 'Termo de busca não especificado.' };
+
+        default:
+          return { success: false, error: 'Comando não reconhecido.' };
+      }
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
 
   showHelp() {
@@ -737,20 +762,24 @@ LEITURA:
 - "Ler título" - Lê o título da página
 - "Ler títulos" - Lista os títulos e subtítulos
 - "Ler links" - Lista os links da página
+- "Resumir" - Gera resumo inteligente da página
 
 NAVEGAÇÃO:
 - "Buscar [termo]" - Busca na página ou no Google
 - "Voltar" / "Avançar" - Navega no histórico
-- "Recarregar" - Atualiza a página
+- "Recarregar" - Atualiza a página atual
 - "Rolar cima/baixo" - Controla a rolagem
 - "Topo" / "Final" - Vai para o início ou fim da página
+- "Abrir nova aba" - Abre nova aba
+- "Fechar aba" - Fecha aba atual
+- "Próxima aba" - Alterna entre abas
 
 CONTROLE:
 - "Para" / "Pare" - Para o que está fazendo
 - "Ok assistente" - Ativa o assistente
 - "Ajuda" - Lista todos os comandos
 
-Você também pode clicar em elementos da página para que sejam lidos.`;
+A IA também entende comandos naturais como "me explique esta página" ou "o que posso fazer aqui".`;
   }
 }
 
