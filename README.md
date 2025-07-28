@@ -5,10 +5,13 @@ Assistente virtual com IA para acessibilidade na navegação web.
 ## Funcionalidades
 
 - Ativação por comando de voz ("Ok, Assistente")
+- IA integrada para entender comandos naturais
 - Comandos de acessibilidade (aumentar/diminuir fonte, alto contraste)
 - Leitura de páginas web
-- Notícias do dia
+- Resumo inteligente de páginas
+- Navegação avançada (abas, busca, formulários)
 - Configurações personalizáveis de voz
+- Atalhos de teclado para acessibilidade
 
 ## Como instalar
 
@@ -18,30 +21,27 @@ Assistente virtual com IA para acessibilidade na navegação web.
 4. Clique em "Carregar sem compactação" e selecione esta pasta
 5. Permita acesso ao microfone quando solicitado
 
-## Configurando a IA (Opcional)
+## IA Integrada
 
-Para usar a funcionalidade de IA inteligente:
+A extensão já vem com IA integrada e configurada! Não é necessário configurar nenhuma chave da API.
 
-1. **Obtenha uma chave da API do Google AI Studio**:
-   - Acesse [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Faça login com sua conta Google
-   - Clique em "Create API Key"
-   - Copie a chave gerada
+### Funcionalidades da IA:
 
-2. **Configure a chave na extensão**:
-   - Clique no ícone da extensão
-   - Vá em "Configurações"
-   - Cole sua chave da API no campo "Chave da API Gemini"
-   - Clique em "Salvar"
-   - Ative a opção "IA Inteligente"
+- **Comandos naturais**: Fale como se estivesse conversando
+- **Análise contextual**: A IA entende o conteúdo da página atual
+- **Sugestões inteligentes**: Receba dicas baseadas no que está navegando
+- **Resumos automáticos**: Gere resumos de qualquer página
+- **Busca inteligente**: Encontre informações de forma mais eficiente
 
-3. **Teste a IA**:
-   - Agora você pode fazer perguntas mais naturais como:
-     - "O que tem nesta página?"
-     - "Me explique o conteúdo"
-     - "Quais são os links importantes?"
+### Exemplos de comandos com IA:
 
-**Nota**: A IA é opcional. A extensão funciona perfeitamente sem ela, usando apenas os comandos básicos.
+- "O que tem nesta página?"
+- "Me explique o conteúdo principal"
+- "Quais são os links mais importantes?"
+- "Resuma esta página para mim"
+- "O que posso fazer aqui?"
+- "Procure por informações sobre tecnologia"
+- "Abra uma nova aba com o Google"
 
 ## Comandos disponíveis
 
@@ -74,12 +74,22 @@ Para usar a funcionalidade de IA inteligente:
 **Informações:**
 - "Notícias do dia" - Lê as principais notícias
 
-### Comandos com IA (requer configuração):
-- "O que tem nesta página?" - Análise inteligente do conteúdo
+### Comandos com IA (sempre disponíveis):
+- "O que tem nesta página?" - Análise inteligente do conteúdo  
 - "Me explique o conteúdo" - Explicação detalhada
 - "Quais são os links importantes?" - Identificação de links relevantes
 - "Resuma esta página" - Resumo inteligente
 - "O que posso fazer aqui?" - Sugestões de ações
+- "Abrir nova aba" - Abre nova aba
+- "Fechar aba" - Fecha aba atual
+- "Próxima aba" - Alterna entre abas
+- "Procurar na página [termo]" - Busca texto na página atual
+
+## Atalhos de teclado
+
+- **Ctrl + Shift + A**: Ativar/desativar assistente
+- **Escape**: Parar fala atual
+- **Clique no botão flutuante**: Ativar assistente
 
 ## Funcionalidades de leitura
 
@@ -95,6 +105,7 @@ Para usar a funcionalidade de IA inteligente:
 - **Desativação automática**: Desativa automaticamente após 30 segundos de inatividade
 - **Desativação manual**: Diga "Para" ou "Pare" para desativar imediatamente
 - **Indicadores visuais**: O botão muda de cor e ícone conforme o estado
+- **IA sempre ativa**: Entende comandos naturais e contextuais
 
 ## Como testar
 
@@ -120,3 +131,5 @@ Se a extensão não estiver lendo o conteúdo:
 2. **Recarregue a extensão**: Vá em `chrome://extensions/` e clique em "Recarregar"
 3. **Verifique o console**: Abra as ferramentas do desenvolvedor (F12) e verifique se há erros
 4. **Teste em diferentes sites**: Alguns sites podem ter proteções que impedem a leitura
+5. **Use o botão "Recarregar Assistente"**: No popup da extensão para reiniciar o assistente
+6. **Teste comandos naturais**: A IA entende frases como "me ajude a navegar nesta página"
