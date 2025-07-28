@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navegador Falante</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 12l2 2 4-4"/>
+          <path d="M21 12c.552 0 1-.448 1-1V5c0-.552-.448-1-1-1H3c-.552 0-1 .448-1 1v6c0 .552.448 1 1 1h9l4 4 4-4z"/>
+        </svg>
+        <h1>Navegador Falante</h1>
+      </div>
+      <div class="status" id="status">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Inativo</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="control-panel">
+        <button id="toggleAssistant" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 8-9.04 6.17a1 1 0 0 0-.23 1.4L4 17.28a1 1 0 0 0 1.4.23L12 12l6.6 5.51a1 1 0 0 0 1.4-.23l1.27-1.71a1 1 0 0 0-.23-1.4L12 8z"/>
+          </svg>
+          Ativar Assistente
+        </button>
+        
+        <button id="testVoice" class="btn-secondary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <path d="M12 19v3"/>
+          </svg>
+          Testar Voz
+        </button>
+        
+        <button id="reloadContent" class="btn-warning">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+            <path d="M3 21v-5h5"/>
+          </svg>
+          Recarregar Assistente
+        </button>
+      </div>
+
+      <div class="commands-section">
+        <h2>Comandos Disponíveis:</h2>
+        <ul class="commands-list">
+          <li><strong>"Ok, Assistente"</strong> - Ativa o assistente (30s)</li>
+          <li><strong>"Para" / "Pare"</strong> - Para e desativa</li>
+          <li><strong>"Buscar [termo]"</strong> - Busca na página ou Google</li>
+          <li><strong>"Voltar" / "Avançar"</strong> - Navega no histórico</li>
+          <li><strong>"Rolar cima/baixo"</strong> - Controla a rolagem</li>
+          <li><strong>"Zoom in/out"</strong> - Controla o zoom</li>
+          <li><strong>"Ler página"</strong> - Lê o conteúdo da página</li>
+          <li><strong>"Ajuda"</strong> - Lista todos os comandos</li>
+        </ul>
+        
+        <div class="info-box">
+          <p><strong>Como usar:</strong></p>
+          <p>1. Diga "Ok, Assistente" para ativar</p>
+          <p>2. Faça seus comandos</p>
+          <p>3. Desativa automaticamente após 30s</p>
+          <p>4. Ou diga "Para" para desativar</p>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Configurações:</h2>
+        <div class="setting-item">
+          <label for="voiceSpeed">Velocidade da Voz:</label>
+          <input type="range" id="voiceSpeed" min="0.5" max="2" step="0.1" value="1">
+          <span id="speedValue">1.0x</span>
+        </div>
+        
+        <div class="setting-item">
+          <label for="voicePitch">Tom da Voz:</label>
+          <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1">
+          <span id="pitchValue">1.0</span>
+        </div>
+
+        <div class="setting-item">
+          <label for="geminiApiKey">Chave da API Gemini:</label>
+          <input type="password" id="geminiApiKey" placeholder="Cole sua chave da API aqui">
+          <button id="saveApiKey" class="btn-secondary">Salvar</button>
+        </div>
+        
+        <div class="setting-item">
+          <label for="aiEnabled">IA Inteligente:</label>
+          <input type="checkbox" id="aiEnabled" checked>
+          <span>Usar IA para entender comandos</span>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

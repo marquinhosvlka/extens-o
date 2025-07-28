@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Navegador Falante</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .debug-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug - Navegador Falante</h1>
+    
+    <div class="debug-section">
+        <h2>Status da Extensão</h2>
+        <div id="extensionStatus" class="status info">Verificando...</div>
+        <button onclick="checkExtension()">Verificar Extensão</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Teste de Comandos</h2>
+        <div id="commandStatus" class="status info">Aguardando teste...</div>
+        <button onclick="testCommand('ler página')">Testar: Ler Página</button>
+        <button onclick="testCommand('resumir')">Testar: Resumir</button>
+        <button onclick="testCommand('ler título')">Testar: Ler Título</button>
+        <button onclick="testCommand('aumentar fonte')">Testar: Aumentar Fonte</button>
+        <button onclick="testCommand('zoom in')">Testar: Zoom In</button>
+        <button onclick="testCommand('buscar teste')">Testar: Buscar</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Log de Eventos</h2>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()">Limpar Log</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>Informações da Página</h2>
+        <div id="pageInfo" class="status info">Carregando...</div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        async function checkExtension() {
+            try {
+                log('Verificando extensão...');
+                
+                // Verifica se a extensão está instalada
+                if (typeof chrome !== 'undefined' && chrome.runtime) {
+                    updateStatus('extensionStatus', 'Extensão detectada!', 'success');
+                    log('✓ Extensão detectada');
+                    
+                    // Tenta enviar uma mensagem de teste
+                    try {
+                        await chrome.runtime.sendMessage({ action: 'test' });
+                        log('✓ Comunicação com background script OK');
+                    } catch (error) {
+                        log(`⚠ Erro na comunicação: ${error.message}`);
+                    }
+                } else {
+                    updateStatus('extensionStatus', 'Extensão não detectada', 'error');
+                    log('✗ Extensão não detectada');
+                }
+            } catch (error) {
+                updateStatus('extensionStatus', `Erro: ${error.message}`, 'error');
+                log(`✗ Erro: ${error.message}`);
+            }
+        }
+
+        async function testCommand(command) {
+            try {
+                log(`Testando comando: "${command}"`);
+                updateStatus('commandStatus', `Testando: ${command}`, 'info');
+                
+                if (typeof chrome !== 'undefined' && chrome.runtime) {
+                    await chrome.runtime.sendMessage({
+                        action: 'processVoiceCommand',
+                        transcript: command
+                    });
+                    log(`✓ Comando enviado: ${command}`);
+                    updateStatus('commandStatus', `Comando enviado: ${command}`, 'success');
+                } else {
+                    throw new Error('Extensão não disponível');
+                }
+            } catch (error) {
+                log(`✗ Erro no comando: ${error.message}`);
+                updateStatus('commandStatus', `Erro: ${error.message}`, 'error');
+            }
+        }
+
+        function updatePageInfo() {
+            const info = {
+                title: document.title,
+                url: window.location.href,
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString()
+            };
+            
+            document.getElementById('pageInfo').innerHTML = `
+                <strong>Título:</strong> ${info.title}<br>
+                <strong>URL:</strong> ${info.url}<br>
+                <strong>User Agent:</strong> ${info.userAgent.substring(0, 100)}...<br>
+                <strong>Timestamp:</strong> ${info.timestamp}
+            `;
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Página de debug carregada');
+            updatePageInfo();
+            checkExtension();
+            
+            // Listener para mensagens da extensão
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                    log(`Mensagem recebida: ${JSON.stringify(message)}`);
+                    sendResponse({ received: true });
+                });
+            }
+        });
+
+        // Log de eventos da página
+        window.addEventListener('load', () => log('Página totalmente carregada'));
+        window.addEventListener('error', (e) => log(`Erro na página: ${e.message}`));
+    </script>
+</body>
+</html> 
